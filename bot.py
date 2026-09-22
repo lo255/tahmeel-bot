@@ -39,11 +39,14 @@ def get_base_ydl_opts():
         'no_warnings': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'web']
+                'player_client': ['android_creator', 'ios', 'tv']
             }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
         }
     }
-    # البحث التلقائي عن ملف الكوكيز بأي صيغة مرفوعة
     possible_names = ["cookies.txt", "cookies.txt.txt", "youtube.com_cookies.txt"]
     for name in possible_names:
         if os.path.exists(name):
@@ -179,7 +182,7 @@ def process_download(call):
     except Exception as e:
         bot.edit_message_text(f"❌ تعذر استكمال التحميل: {str(e)[:120]}", chat_id, progress_msg.message_id)
 
-# حلقة اتصال ذكية تتجاوز خطأ التعارض (Conflict 409) دون توقف السيرفر
+# معالجة ذكية لتجاوز تعارض النسخ (Conflict 409) دون إيقاف السيرفر
 print("Bot service is starting...")
 while True:
     try:
