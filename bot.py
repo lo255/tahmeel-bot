@@ -7,13 +7,13 @@ import telebot
 from telebot import types
 import yt_dlp
 
-# --- إعداد السيرفر للبقاء نشطاً 24/7 على Render ---
+# --- سيرفر التشغيل الدائم 24/7 على Render ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(b"Bot is Running 24/7 with Adsterra Monetization!")
+        self.wfile.write(b"Bot is Running 24/7 with Adsterra & Cookies!")
 
     def do_HEAD(self):
         self.send_response(200)
@@ -26,31 +26,43 @@ def run_http_server():
 
 threading.Thread(target=run_http_server, daemon=True).start()
 
-# --- إعداد البوت والبيانات ---
+# --- إعدادات البوت والربح ---
 BOT_TOKEN = "7767260638:AAHKNqMRON2ghADKYHD-94lFInn1tvGUmXM"
 AD_LINK = "https://www.profitableratecpmnetwork.com/a0m43e0w?key=9976f2ba3803fa34553592c3aeaf6f18"
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode='HTML')
 
 YOUTUBE_REGEX = r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|shorts/|.+\?v=)?([^&=%\?]{11})'
 
-# تجاوز فحص البوتات من خلال محاكاة تطبيقات الهواتف
-YDL_BASE_OPTS = {
-    'quiet': True,
-    'no_warnings': True,
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['android', 'ios']
+def get_base_ydl_opts():
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web']
+            }
         }
     }
-}
+    # التعرف التلقائي على ملف الكوكيز بأي اسم
+    if os.path.exists("cookies.txt"):
+        opts['cookiefile'] = "cookies.txt"
+    elif os.path.exists("cookies.txt.txt"):
+        opts['cookiefile'] = "cookies.txt.txt"
+    return opts
 
+# زر الربح يظهر مع رسالة الترحيب /start
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
+    markup = types.InlineKeyboardMarkup()
+    btn_ad = types.InlineKeyboardButton("🚀 سيرفر التحميل السريع (إعلان داعم)", url=AD_LINK)
+    markup.add(btn_ad)
+    
     welcome_text = (
         "👋 <b>مرحباً بك في بوت تحميل الفيديوهات!</b>\n\n"
-        "📥 أرسل لي أي رابط فيديو من يوتيوب لتحميله بصيغة فيديو MP4 أو مقطع صوتي MP3 بجودة عالية."
+        "📥 أرسل لي أي رابط فيديو من يوتيوب لتحميله بصيغة MP4 أو MP3 بجودة عالية.\n\n"
+        "⚡ اضغط الزر بالأسفل لدعم استمرار السيرفر:"
     )
-    bot.reply_to(message, welcome_text)
+    bot.reply_to(message, welcome_text, reply_markup=markup)
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -61,10 +73,10 @@ def handle_message(message):
         bot.reply_to(message, "⚠️ يرجى إرسال رابط يوتيوب صحيح.")
         return
 
-    status_msg = bot.reply_to(message, "🔎 جاري فحص الرابط وجلب بيانات الفيديو...")
+    status_msg = bot.reply_to(message, "🔎 جاري فحص الرابط عبر الكوكيز وتجهيز التحميل...")
 
     try:
-        ydl_opts = dict(YDL_BASE_OPTS)
+        ydl_opts = get_base_ydl_opts()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             title = info.get('title', 'فيديو يوتيوب')
@@ -84,10 +96,9 @@ def handle_message(message):
         )
 
         markup = types.InlineKeyboardMarkup(row_width=2)
-        btn_ad = types.InlineKeyboardButton("🚀 سيرفر التحميل السريع (إعلان داعم)", url=AD_LINK)
+        btn_ad = types.InlineKeyboardButton("🚀 سيرفر التحميل السريع (إعلان)", url=AD_LINK)
         btn_video = types.InlineKeyboardButton("🎥 فيديو MP4", callback_data=f"vid_{video_id}")
         btn_audio = types.InlineKeyboardButton("🎵 مقطع صوتي MP3", callback_data=f"aud_{video_id}")
-        
         markup.add(btn_ad)
         markup.add(btn_video, btn_audio)
 
@@ -99,7 +110,12 @@ def handle_message(message):
             bot.send_message(message.chat.id, caption, reply_markup=markup)
 
     except Exception as e:
-        bot.edit_message_text(f"❌ حدث خطأ: {str(e)[:120]}", chat_id=message.chat.id, message_id=status_msg.message_id)
+        err_markup = types.InlineKeyboardMarkup()
+        err_markup.add(types.InlineKeyboardButton("🚀 سيرفر التحميل البديل (إعلان)", url=AD_LINK))
+        bot.edit_message_text(f"❌ تعذر استخراج الفيديو: {str(e)[:100]}", 
+                              chat_id=message.chat.id, 
+                              message_id=status_msg.message_id, 
+                              reply_markup=err_markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(('vid_', 'aud_')))
 def process_download(call):
@@ -108,13 +124,16 @@ def process_download(call):
     chat_id = call.message.chat.id
 
     bot.answer_callback_query(call.id, "⏳ جاري بدء التنزيل والمعالجة...")
-    progress_msg = bot.send_message(chat_id, "⏳ جاري التنزيل والرفع إلى تليجرام، انتظر لحظات...")
+    
+    ad_box = types.InlineKeyboardMarkup()
+    ad_box.add(types.InlineKeyboardButton("🚀 تسريع التحميل عبر السيرفر الداعم (إعلان)", url=AD_LINK))
+    progress_msg = bot.send_message(chat_id, "⏳ جاري التنزيل والرفع، انتظر ثوانٍ معدودة...", reply_markup=ad_box)
 
     out_tmpl = f"downloads/{video_id}_%(ext)s"
     os.makedirs("downloads", exist_ok=True)
 
     try:
-        ydl_opts = dict(YDL_BASE_OPTS)
+        ydl_opts = get_base_ydl_opts()
         if action == "vid":
             ydl_opts.update({
                 'format': 'best[ext=mp4]/best',
@@ -126,7 +145,7 @@ def process_download(call):
                 filename = ydl.prepare_filename(info)
 
             with open(filename, 'rb') as video_file:
-                bot.send_video(chat_id, video_file, caption="✅ تم التحميل بنجاح.")
+                bot.send_video(chat_id, video_file, caption="✅ تم التحميل بنجاح بواسطة البوت.")
             if os.path.exists(filename):
                 os.remove(filename)
 
