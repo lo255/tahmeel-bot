@@ -7,7 +7,7 @@ import telebot
 from telebot import types
 import yt_dlp
 
-# --- إعداد السيرفر المصغر للبقاء نشطاً 24/7 على Render ---
+# --- إعداد السيرفر للبقاء نشطاً 24/7 على Render ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -33,6 +33,17 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode='HTML')
 
 YOUTUBE_REGEX = r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|shorts/|.+\?v=)?([^&=%\?]{11})'
 
+# تجاوز فحص البوتات من خلال محاكاة تطبيقات الهواتف
+YDL_BASE_OPTS = {
+    'quiet': True,
+    'no_warnings': True,
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'ios']
+        }
+    }
+}
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
@@ -53,7 +64,7 @@ def handle_message(message):
     status_msg = bot.reply_to(message, "🔎 جاري فحص الرابط وجلب بيانات الفيديو...")
 
     try:
-        ydl_opts = {'quiet': True, 'no_warnings': True}
+        ydl_opts = dict(YDL_BASE_OPTS)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             title = info.get('title', 'فيديو يوتيوب')
@@ -69,13 +80,11 @@ def handle_message(message):
             f"🎬 <b>العنوان:</b> {title}\n"
             f"👤 <b>القناة:</b> {uploader}\n"
             f"⏱ <b>المدة:</b> {time_format}\n\n"
-            f"👇 <i>اختر صيغة التحميل، أو اضغط زر الدعم لمساعدتنا على الاستمرار:</i>"
+            f"👇 <i>اختر صيغة التحميل:</i>"
         )
 
         markup = types.InlineKeyboardMarkup(row_width=2)
-        # زر الربح من Adsterra
         btn_ad = types.InlineKeyboardButton("🚀 سيرفر التحميل السريع (إعلان داعم)", url=AD_LINK)
-        # أزرار التحميل
         btn_video = types.InlineKeyboardButton("🎥 فيديو MP4", callback_data=f"vid_{video_id}")
         btn_audio = types.InlineKeyboardButton("🎵 مقطع صوتي MP3", callback_data=f"aud_{video_id}")
         
@@ -90,7 +99,7 @@ def handle_message(message):
             bot.send_message(message.chat.id, caption, reply_markup=markup)
 
     except Exception as e:
-        bot.edit_message_text(f"❌ حدث خطأ أثناء جلب الفيديو: {str(e)[:100]}", chat_id=message.chat.id, message_id=status_msg.message_id)
+        bot.edit_message_text(f"❌ حدث خطأ: {str(e)[:120]}", chat_id=message.chat.id, message_id=status_msg.message_id)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(('vid_', 'aud_')))
 def process_download(call):
@@ -105,24 +114,24 @@ def process_download(call):
     os.makedirs("downloads", exist_ok=True)
 
     try:
+        ydl_opts = dict(YDL_BASE_OPTS)
         if action == "vid":
-            ydl_opts = {
+            ydl_opts.update({
                 'format': 'best[ext=mp4]/best',
                 'outtmpl': out_tmpl,
                 'max_filesize': 50 * 1024 * 1024,
-                'quiet': True
-            }
+            })
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
 
             with open(filename, 'rb') as video_file:
-                bot.send_video(chat_id, video_file, caption="✅ تم التحميل بنجاح بواسطة البوت.")
+                bot.send_video(chat_id, video_file, caption="✅ تم التحميل بنجاح.")
             if os.path.exists(filename):
                 os.remove(filename)
 
         elif action == "aud":
-            ydl_opts = {
+            ydl_opts.update({
                 'format': 'bestaudio/best',
                 'outtmpl': f"downloads/{video_id}.%(ext)s",
                 'postprocessors': [{
@@ -131,8 +140,7 @@ def process_download(call):
                     'preferredquality': '192',
                 }],
                 'max_filesize': 50 * 1024 * 1024,
-                'quiet': True
-            }
+            })
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
                 filename = f"downloads/{video_id}.mp3"
