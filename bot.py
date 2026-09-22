@@ -7,7 +7,6 @@ import telebot
 from telebot import types
 import yt_dlp
 
-# --- سيرفر HTTP لإبقاء الخدمة حية 24/7 على Render ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -26,9 +25,8 @@ def run_http_server():
 
 threading.Thread(target=run_http_server, daemon=True).start()
 
-# --- إعدادات البوت والربح ---
 BOT_TOKEN = "7767260638:AAHKNqMRON2ghADKYHD-94lFInn1tvGUmXM"
-AD_LINK = "https://www.profitableratecpmnetwork.com/a0m43e0w?key=9976f2ba3803fa34553592c3aeaf6f18"
+AD_LINK = "https://t.me/your_channel"  # استبدله برابط قناتك أو رابط إعلانك لاحقاً
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode='HTML')
 
 YOUTUBE_REGEX = r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|shorts/|.+\?v=)?([^&=%\?]{11})'
@@ -58,7 +56,6 @@ def get_base_ydl_opts():
             break
     return opts
 
-# رسالة الترحيب مع زر إعلان Adsterra
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     markup = types.InlineKeyboardMarkup()
@@ -182,7 +179,6 @@ def process_download(call):
     except Exception as e:
         bot.edit_message_text(f"❌ تعذر استكمال التحميل: {str(e)[:120]}", chat_id, progress_msg.message_id)
 
-# معالجة ذكية لتجاوز تعارض النسخ (Conflict 409) دون إيقاف السيرفر
 print("Bot service is starting...")
 while True:
     try:
