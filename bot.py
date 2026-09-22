@@ -7,20 +7,20 @@ import telebot
 from telebot import types
 import yt_dlp
 
-# --- سيرفر التشغيل الدائم 24/7 على Render ---
+# --- سيرفر HTTP لإبقاء الخدمة حية 24/7 على Render ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(b"Bot is Running 24/7 with Adsterra & Cookies!")
+        self.wfile.write(b"Bot is Running 24/7 with Cookies & Adsterra!")
 
     def do_HEAD(self):
         self.send_response(200)
         self.end_headers()
 
 def run_http_server():
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), SimpleHandler)
     server.serve_forever()
 
@@ -43,14 +43,19 @@ def get_base_ydl_opts():
             }
         }
     }
-    # التعرف التلقائي على ملف الكوكيز بأي اسم
-    if os.path.exists("cookies.txt"):
-        opts['cookiefile'] = "cookies.txt"
-    elif os.path.exists("cookies.txt.txt"):
-        opts['cookiefile'] = "cookies.txt.txt"
+    # البحث التلقائي عن ملف الكوكيز بأي صيغة مرفوعة
+    possible_names = ["cookies.txt", "cookies.txt.txt", "youtube.com_cookies.txt"]
+    for name in possible_names:
+        if os.path.exists(name):
+            opts['cookiefile'] = name
+            break
+        full_path = os.path.join(os.path.dirname(__file__), name)
+        if os.path.exists(full_path):
+            opts['cookiefile'] = full_path
+            break
     return opts
 
-# زر الربح يظهر مع رسالة الترحيب /start
+# رسالة الترحيب مع زر إعلان Adsterra
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     markup = types.InlineKeyboardMarkup()
@@ -58,7 +63,7 @@ def send_welcome(message):
     markup.add(btn_ad)
     
     welcome_text = (
-        "👋 <b>مرحباً بك في بوت تحميل الفيديوهات!</b>\n\n"
+        "👋 <b>مرحباً بك في بوت تحميل الفيديوهات جوكر!</b>\n\n"
         "📥 أرسل لي أي رابط فيديو من يوتيوب لتحميله بصيغة MP4 أو MP3 بجودة عالية.\n\n"
         "⚡ اضغط الزر بالأسفل لدعم استمرار السيرفر:"
     )
@@ -112,7 +117,7 @@ def handle_message(message):
     except Exception as e:
         err_markup = types.InlineKeyboardMarkup()
         err_markup.add(types.InlineKeyboardButton("🚀 سيرفر التحميل البديل (إعلان)", url=AD_LINK))
-        bot.edit_message_text(f"❌ تعذر استخراج الفيديو: {str(e)[:100]}", 
+        bot.edit_message_text(f"❌ تعذر استخراج الفيديو: {str(e)[:120]}", 
                               chat_id=message.chat.id, 
                               message_id=status_msg.message_id, 
                               reply_markup=err_markup)
@@ -174,5 +179,18 @@ def process_download(call):
     except Exception as e:
         bot.edit_message_text(f"❌ تعذر استكمال التحميل: {str(e)[:120]}", chat_id, progress_msg.message_id)
 
-print("Bot is polling...")
-bot.infinity_polling(skip_pending=True)
+# حلقة اتصال ذكية تتجاوز خطأ التعارض (Conflict 409) دون توقف السيرفر
+print("Bot service is starting...")
+while True:
+    try:
+        bot.polling(none_stop=True, timeout=20)
+    except telebot.apihelper.ApiTelegramException as e:
+        if e.error_code == 409:
+            print("Conflict 409 detected. Waiting 6 seconds for old instance to terminate...")
+            time.sleep(6)
+        else:
+            print(f"Telegram API Exception: {e}")
+            time.sleep(4)
+    except Exception as e:
+        print(f"General polling error: {e}")
+        time.sleep(4)
